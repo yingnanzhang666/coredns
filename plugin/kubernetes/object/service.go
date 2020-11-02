@@ -29,17 +29,17 @@ type Service struct {
 func ServiceKey(name, namespace string) string { return name + "." + namespace }
 
 // ToService returns a function that converts an api.Service to a *Service.
-func ToService(skipCleanup bool) ToFunc {
+func ToService() ToFunc {
 	return func(obj interface{}) (interface{}, error) {
 		svc, ok := obj.(*api.Service)
 		if !ok {
 			return nil, fmt.Errorf("unexpected object %v", obj)
 		}
-		return toService(skipCleanup, svc), nil
+		return toService(svc), nil
 	}
 }
 
-func toService(skipCleanup bool, svc *api.Service) *Service {
+func toService(svc *api.Service) *Service {
 	s := &Service{
 		Version:      svc.GetResourceVersion(),
 		Name:         svc.GetName(),
@@ -70,9 +70,7 @@ func toService(skipCleanup bool, svc *api.Service) *Service {
 
 	}
 
-	if !skipCleanup {
-		*svc = api.Service{}
-	}
+	*svc = api.Service{}
 
 	return s
 }
