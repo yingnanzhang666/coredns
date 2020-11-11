@@ -276,3 +276,37 @@ func TestTransferNotAllowed(t *testing.T) {
 		t.Errorf("Expected REFUSED response code, got %s", dns.RcodeToString[w.Msg.Rcode])
 	}
 }
+
+type failWriter struct {
+	test.ResponseWriter
+}
+
+func (*failWriter) WriteMsg(_ *dns.Msg) error { return fmt.Errorf("failed to write message") }
+
+func TestTransferWriteFailure(t *testing.T) {
+	nextPlugin := transfererPlugin{Zone: "example.org.", Serial: 12345}
+
+	transfer := Transfer{
+		Transferers: []Transferer{&nextPlugin},
+		xfrs: []*xfr{
+			{
+				Zones: []string{"example.org."},
+				to:    []string{"*"},
+			},
+		},
+		Next: &nextPlugin,
+	}
+
+	ctx := context.TODO()
+	w := dnstest.NewRecorder(&failWriter{})
+	m := &dns.Msg{}
+	m.SetAxfr(transfer.xfrs[0].Zones[0])
+
+	_, err := transfer.ServeDNS(ctx, w, m)
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	println(w.Msg.String())
+}
