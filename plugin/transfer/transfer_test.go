@@ -303,10 +303,7 @@ func TestTransferWriteFailure(t *testing.T) {
 	m.SetAxfr(transfer.xfrs[0].Zones[0])
 
 	_, err := transfer.ServeDNS(ctx, w, m)
-
 	if err != nil {
 		t.Error(err)
 	}
-
-	println(w.Msg.String())
 }
