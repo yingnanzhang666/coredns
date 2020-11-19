@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	api "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -29,17 +30,24 @@ type Service struct {
 func ServiceKey(name, namespace string) string { return name + "." + namespace }
 
 // ToService returns a function that converts an api.Service to a *Service.
-func ToService(skipCleanup bool) ToFunc {
+func ToService(skipCleanup bool, hairpinLabelSelector, hairpinAnnotationSelector labels.Selector) ToFunc {
 	return func(obj interface{}) (interface{}, error) {
 		svc, ok := obj.(*api.Service)
 		if !ok {
 			return nil, fmt.Errorf("unexpected object %v", obj)
 		}
-		return toService(skipCleanup, svc), nil
+		return toService(skipCleanup, svc, hairpinLabelSelector, hairpinAnnotationSelector), nil
 	}
 }
 
-func toService(skipCleanup bool, svc *api.Service) *Service {
+func toService(skipCleanup bool, svc *api.Service, hairpinLabelSelector, hairpinAnnotationSelector labels.Selector) *Service {
+	isHairpin := false
+	if hairpinLabelSelector != nil && hairpinLabelSelector.Matches(labels.Set(svc.Labels)) {
+		isHairpin = true
+	}
+	if hairpinAnnotationSelector != nil && hairpinAnnotationSelector.Matches(labels.Set(svc.Annotations)) {
+		isHairpin = true
+	}
 	s := &Service{
 		Version:      svc.GetResourceVersion(),
 		Name:         svc.GetName(),
@@ -50,6 +58,9 @@ func toService(skipCleanup bool, svc *api.Service) *Service {
 		ExternalName: svc.Spec.ExternalName,
 
 		ExternalIPs: make([]string, len(svc.Status.LoadBalancer.Ingress)+len(svc.Spec.ExternalIPs)),
+	}
+	if isHairpin && s.ClusterIP != api.ClusterIPNone {
+		s.ClusterIP = "Skip"
 	}
 
 	if len(svc.Spec.Ports) == 0 {

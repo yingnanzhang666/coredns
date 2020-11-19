@@ -597,3 +597,103 @@ func TestKubernetesParseIgnoreEmptyService(t *testing.T) {
 		}
 	}
 }
+
+func TestKubernetesParseHairpin(t *testing.T) {
+	tests := []struct {
+		input                      string // Corefile data as string
+		shouldErr                  bool   // true if test case is expected to produce an error.
+		expectedErrContent         string // substring from the expected error. Empty for positive cases.
+		expectedLabelSelector      string // expected label selector value
+		expectedAnnotationSelector string // expected annotation selector value
+	}{
+		// positive
+		{
+			`kubernetes coredns.local {
+    hairpin labels skip=true
+}`,
+			false,
+			"",
+			"skip=true",
+			"",
+		},
+		{
+			`kubernetes coredns.local {
+    hairpin annotations network.tess.io/skip-proxy
+}`,
+			false,
+			"",
+			"",
+			"network.tess.io/skip-proxy",
+		},
+		{
+			`kubernetes coredns.local {
+    hairpin labels skip=true
+    hairpin annotations network.tess.io/skip-proxy
+}`,
+			false,
+			"",
+			"skip=true",
+			"network.tess.io/skip-proxy",
+		},
+		// negative
+		{
+			`kubernetes coredns.local {
+    hairpin
+}`,
+			true,
+			"Wrong argument count or unexpected line ending",
+			"",
+			"",
+		},
+		{
+			`kubernetes coredns.local {
+    hairpin labels environment in (production, qa
+}`,
+			true,
+			"unable to parse label selector",
+			"",
+			"",
+		},
+	}
+
+	for i, test := range tests {
+		c := caddy.NewTestController("dns", test.input)
+		k8sController, err := kubernetesParse(c)
+
+		if test.shouldErr && err == nil {
+			t.Errorf("Test %d: Expected error, but did not find error for input '%s'. Error was: '%v'", i, test.input, err)
+		}
+
+		if err != nil {
+			if !test.shouldErr {
+				t.Errorf("Test %d: Expected no error but found one for input %s. Error was: %v", i, test.input, err)
+				continue
+			}
+
+			if test.shouldErr && (len(test.expectedErrContent) < 1) {
+				t.Fatalf("Test %d: Test marked as expecting an error, but no expectedErrContent provided for input '%s'. Error was: '%v'", i, test.input, err)
+			}
+
+			if !strings.Contains(err.Error(), test.expectedErrContent) {
+				t.Errorf("Test %d: Expected error to contain: %v, found error: %v, input: %s", i, test.expectedErrContent, err, test.input)
+			}
+			continue
+		}
+
+		// No error was raised, so validate initialization of k8sController
+
+		//   Hairpin Labels & Annotations
+		if k8sController.opts.hairpinLabelSelector != nil {
+			foundLabelSelectorString := meta.FormatLabelSelector(k8sController.opts.hairpinLabelSelector)
+			if foundLabelSelectorString != test.expectedLabelSelector {
+				t.Errorf("Test %d: Expected kubernetes controller to be initialized with label selector '%s'. Instead found selector '%s' for input '%s'", i, test.expectedLabelSelector, foundLabelSelectorString, test.input)
+			}
+		}
+		if k8sController.opts.hairpinAnnotationSelector != nil {
+			foundAnnotationSelectorString := meta.FormatLabelSelector(k8sController.opts.hairpinAnnotationSelector)
+			if foundAnnotationSelectorString != test.expectedAnnotationSelector {
+				t.Errorf("Test %d: Expected kubernetes controller to be initialized with annotation selector '%s'. Instead found selector '%s' for input '%s'", i, test.expectedAnnotationSelector, foundAnnotationSelectorString, test.input)
+			}
+		}
+	}
+}

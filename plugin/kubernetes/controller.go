@@ -95,6 +95,11 @@ type dnsControlOpts struct {
 	zones                 []string
 	endpointNameMode      bool
 	skipAPIObjectsCleanup bool
+
+	hairpinLabelSelector        *meta.LabelSelector
+	hairpinLabelAsSelector      labels.Selector
+	hairpinAnnotationSelector   *meta.LabelSelector
+	hairpinAnnotationAsSelector labels.Selector
 }
 
 // newDNSController creates a controller for CoreDNS.
@@ -116,7 +121,7 @@ func newdnsController(ctx context.Context, kubeClient kubernetes.Interface, opts
 		&api.Service{},
 		cache.ResourceEventHandlerFuncs{AddFunc: dns.Add, UpdateFunc: dns.Update, DeleteFunc: dns.Delete},
 		cache.Indexers{svcNameNamespaceIndex: svcNameNamespaceIndexFunc, svcIPIndex: svcIPIndexFunc},
-		object.DefaultProcessor(object.ToService(opts.skipAPIObjectsCleanup), nil),
+		object.DefaultProcessor(object.ToService(opts.skipAPIObjectsCleanup, opts.hairpinLabelAsSelector, opts.hairpinAnnotationAsSelector), nil),
 	)
 
 	if opts.initPodCache {

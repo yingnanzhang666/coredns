@@ -262,6 +262,31 @@ func ParseStanza(c *caddy.Controller) (*Kubernetes, error) {
 				continue
 			}
 			return nil, c.ArgErr()
+		case "hairpin":
+			args := c.RemainingArgs()
+			if len(args) > 0 {
+				selectorType := args[0]
+				if selectorType == "labels" {
+					labelSelectorString := strings.Join(args[1:], " ")
+					ls, err := meta.ParseToLabelSelector(labelSelectorString)
+					if err != nil {
+						return nil, fmt.Errorf("unable to parse label selector value: '%v': %v", labelSelectorString, err)
+					}
+					k8s.opts.hairpinLabelSelector = ls
+					continue
+				} else if selectorType == "annotations" {
+					annotationSelectorString := strings.Join(args[1:], " ")
+					as, err := meta.ParseToLabelSelector(annotationSelectorString)
+					if err != nil {
+						return nil, fmt.Errorf("unable to parse annotation selector value: '%v': %v", annotationSelectorString, err)
+					}
+					k8s.opts.hairpinAnnotationSelector = as
+					continue
+				} else {
+					return nil, fmt.Errorf("unsupported selector type for hairpin: '%v'", selectorType)
+				}
+			}
+			return nil, c.ArgErr()
 		default:
 			return nil, c.Errf("unknown property '%s'", c.Val())
 		}

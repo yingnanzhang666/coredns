@@ -98,6 +98,12 @@ kubernetes [ZONES...] {
 * `ignore empty_service` returns NXDOMAIN for services without any ready endpoint addresses (e.g., ready pods).
   This allows the querying pod to continue searching for the service in the search path.
   The search path could, for example, include another Kubernetes cluster.
+* `hairpin` **HAIRPIN-TYPE** **EXPRESSION** exposes ExternalIP instead of ClusterIP for Kubernetes services
+   that match this selector. Valid values for **HAIRPIN-TYPE**:
+
+   * `labels`: the labels of Services match this selector.
+   * `annotations`: the annotations of Services match this selector.
+
 
 Enabling zone transfer is done by using the *transfer* plugin.
 

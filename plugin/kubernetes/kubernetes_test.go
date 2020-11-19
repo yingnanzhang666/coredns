@@ -92,6 +92,15 @@ func (APIConnServiceTest) SvcIndex(string) []*object.Service {
 				{Name: "http", Protocol: "tcp", Port: 80},
 			},
 		},
+		{
+			Name:        "hairpinsvc",
+			Namespace:   "testns",
+			ClusterIP:   "Skip",
+			ExternalIPs: []string{"8.8.8.8"},
+			Ports: []api.ServicePort{
+				{Name: "http", Protocol: "tcp", Port: 80},
+			},
+		},
 	}
 	return svcs
 }
@@ -116,6 +125,15 @@ func (APIConnServiceTest) ServiceList() []*object.Service {
 			Namespace:    "testns",
 			ExternalName: "coredns.io",
 			Type:         api.ServiceTypeExternalName,
+			Ports: []api.ServicePort{
+				{Name: "http", Protocol: "tcp", Port: 80},
+			},
+		},
+		{
+			Name:        "hairpinsvc",
+			Namespace:   "testns",
+			ClusterIP:   "Skip",
+			ExternalIPs: []string{"8.8.8.8"},
 			Ports: []api.ServicePort{
 				{Name: "http", Protocol: "tcp", Port: 80},
 			},
@@ -269,6 +287,9 @@ func TestServices(t *testing.T) {
 
 		// Headless Services
 		{qname: "hdls1.testns.svc.interwebs.test.", qtype: dns.TypeA, answer: svcAns{host: "172.0.0.2", key: "/" + coredns + "/test/interwebs/svc/testns/hdls1/172-0-0-2"}},
+
+		// Hairpin Services
+		{qname: "hairpinsvc.testns.svc.interwebs.tests.", qtype: dns.TypeA, answer: svcAns{host: "8.8.8.8", key: "/" + coredns + "/test/interwebs/svc/testns/hairpinsvc"}},
 	}
 
 	for i, test := range tests {

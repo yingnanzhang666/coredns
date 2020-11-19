@@ -242,6 +242,24 @@ func (k *Kubernetes) InitKubeCache(ctx context.Context) (err error) {
 		k.opts.namespaceSelector = selector
 	}
 
+	if k.opts.hairpinLabelSelector != nil {
+		var selector labels.Selector
+		selector, err = meta.LabelSelectorAsSelector(k.opts.hairpinLabelSelector)
+		if err != nil {
+			return fmt.Errorf("unable to create Selector for LabelSelector '%s': %q", k.opts.hairpinLabelSelector, err)
+		}
+		k.opts.hairpinLabelAsSelector = selector
+	}
+
+	if k.opts.hairpinAnnotationSelector != nil {
+		var selector labels.Selector
+		selector, err = meta.LabelSelectorAsSelector(k.opts.hairpinAnnotationSelector)
+		if err != nil {
+			return fmt.Errorf("unable to create Selector for LabelSelector '%s': %q", k.opts.hairpinAnnotationSelector, err)
+		}
+		k.opts.hairpinAnnotationAsSelector = selector
+	}
+
 	k.opts.initPodCache = k.podMode == podModeVerified
 
 	k.opts.zones = k.Zones
@@ -495,17 +513,25 @@ func (k *Kubernetes) findServices(r recordRequest, zone string) (services []msg.
 		}
 
 		// ClusterIP service
-		for _, p := range svc.Ports {
-			if !(match(r.port, p.Name) && match(r.protocol, string(p.Protocol))) {
-				continue
+		ips := []string{}
+		if svc.ClusterIP == "Skip" {
+			ips = svc.ExternalIPs
+		} else {
+			ips = []string{svc.ClusterIP}
+		}
+		for _, ip := range ips {
+			for _, p := range svc.Ports {
+				if !(match(r.port, p.Name) && match(r.protocol, string(p.Protocol))) {
+					continue
+				}
+
+				err = nil
+
+				s := msg.Service{Host: ip, Port: int(p.Port), TTL: k.ttl}
+				s.Key = strings.Join([]string{zonePath, Svc, svc.Namespace, svc.Name}, "/")
+
+				services = append(services, s)
 			}
-
-			err = nil
-
-			s := msg.Service{Host: svc.ClusterIP, Port: int(p.Port), TTL: k.ttl}
-			s.Key = strings.Join([]string{zonePath, Svc, svc.Namespace, svc.Name}, "/")
-
-			services = append(services, s)
 		}
 	}
 	return services, err

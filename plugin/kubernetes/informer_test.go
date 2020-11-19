@@ -7,11 +7,13 @@ import (
 
 	api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 )
 
 func TestDefaultProcessor(t *testing.T) {
-	pbuild := object.DefaultProcessor(object.ToService(true), nil)
+	al := labels.Set(map[string]string{"network.tess.io/skip-proxy": "true"}).AsSelector()
+	pbuild := object.DefaultProcessor(object.ToService(true, nil, al), nil)
 	reh := cache.ResourceEventHandlerFuncs{}
 	idx := cache.NewIndexer(cache.DeletionHandlingMetaNamespaceKeyFunc, cache.Indexers{})
 	processor := pbuild(idx, reh)
@@ -26,6 +28,11 @@ func testProcessor(t *testing.T, processor cache.ProcessFunc, idx cache.Indexer)
 	obj2 := &api.Service{
 		ObjectMeta: metav1.ObjectMeta{Name: "service2", Namespace: "test1"},
 		Spec:       api.ServiceSpec{ClusterIP: "5.6.7.8", Ports: []api.ServicePort{{Port: 80}}},
+	}
+	objHairpin := &api.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "hairpinsvc", Namespace: "test1", Annotations: map[string]string{"network.tess.io/skip-proxy": "true"}},
+		Spec:       api.ServiceSpec{ClusterIP: "192.168.111.111", Ports: []api.ServicePort{{Port: 80}}},
+		Status:     api.ServiceStatus{LoadBalancer: api.LoadBalancerStatus{Ingress: []api.LoadBalancerIngress{{IP: "8.8.8.8"}}}},
 	}
 
 	// Add the objects
@@ -107,5 +114,27 @@ func testProcessor(t *testing.T, processor cache.ProcessFunc, idx cache.Indexer)
 	}
 	if exists {
 		t.Fatal("tombstone deleted object found in index")
+	}
+
+	// Add hairpin service
+	err = processor(cache.Deltas{
+		{Type: cache.Added, Object: objHairpin},
+	})
+	if err != nil {
+		t.Fatalf("add failed: %v", err)
+	}
+	got, exists, err = idx.Get(objHairpin)
+	if err != nil {
+		t.Fatalf("get added object failed: %v", err)
+	}
+	if !exists {
+		t.Fatal("added object not found in index")
+	}
+	svc, ok = got.(*object.Service)
+	if !ok {
+		t.Fatal("object in index was incorrect type")
+	}
+	if svc.ClusterIP != "Skip" {
+		t.Fatalf("expected Skip, got %v", svc.ClusterIP)
 	}
 }

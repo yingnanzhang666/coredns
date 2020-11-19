@@ -30,6 +30,14 @@ var dnsTestCases = []test.Case{
 			test.A("svcempty.testns.svc.cluster.local.	5	IN	A	10.0.0.1"),
 		},
 	},
+	// A Service (hairpin)
+	{
+		Qname: "hairpinsvc.testns.svc.cluster.local.", Qtype: dns.TypeA,
+		Rcode: dns.RcodeSuccess,
+		Answer: []dns.RR{
+			test.A("hairpinsvc.testns.svc.cluster.local.	5	IN	A	8.8.8.8"),
+		},
+	},
 	// A Service (wildcard)
 	{
 		Qname: "svc1.*.svc.cluster.local.", Qtype: dns.TypeA,
@@ -614,6 +622,18 @@ var svcIndex = map[string][]*object.Service{
 			Namespace: "unexposedns",
 			Type:      api.ServiceTypeClusterIP,
 			ClusterIP: "10.0.0.2",
+			Ports: []api.ServicePort{
+				{Name: "http", Protocol: "tcp", Port: 80},
+			},
+		},
+	},
+	"hairpinsvc.testns": {
+		{
+			Name:        "hairpinsvc",
+			Namespace:   "testns",
+			Type:        api.ServiceTypeClusterIP,
+			ClusterIP:   "Skip",
+			ExternalIPs: []string{"8.8.8.8"},
 			Ports: []api.ServicePort{
 				{Name: "http", Protocol: "tcp", Port: 80},
 			},
